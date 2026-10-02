@@ -1,0 +1,34 @@
+# Saved models directories (across all folders)
+**/saved_models/
+**/savedmodels/
+saved_models/
+savedmodels/
+
+# Parquet files in folder 01 (01_datasets_and_preprocessing)
+01_datasets_and_preprocessing/**/*.parquet
+01_datasets_and_preprocessing/*.parquet
+folder01/**/*.parquet
+folder01/*.parquet
+
+# Python & Environment artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+.env
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+
+# Large model artifacts & weights (backup safety for GitHub 100MB limit)
+*.safetensors
+
+# OS generated files
+.DS_Store
+Thumbs.db
