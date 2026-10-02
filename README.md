@@ -8,7 +8,7 @@
 
 An enterprise-grade, end-to-end **Aspect-Based Sentiment Analysis (ABSA)** and **Operational Analytics Pipeline** designed to transform unstructured restaurant customer feedback into granular, auditable business intelligence. 
 
-Standard customer star ratings (1 to 5 stars) fail modern restaurant management: a 3-star review stating *"The mutton biryani was heavenly, but our waiter was exceedingly rude and the AC was leaking"* collapses three distinct operational dimensions into an uninformative average. DineSense AI decomposes reviews into discourse-level clauses, classifies them into **5 operational aspects**, predicts sentiment with a **class-weighted, fine-tuned DistilBERT transformer**, applies **Empirical Bayes smoothing**, and powers an **interactive Streamlit executive dashboard** with automated root-cause diagnosis.
+Standard customer star ratings (1 to 5 stars) fail modern restaurant management: a 3-star review stating *"The mutton biryani was heavenly, but our waiter was exceedingly rude and the AC was leaking"* collapses three distinct operational dimensions into an uninformative average. DineSense AI decomposes raw, unstructured review text directly into discourse-level clauses, classifies them into **5 operational aspects**, predicts sentiment with a **class-weighted, fine-tuned DistilBERT transformer** (trained strictly on text without relying on star ratings), and powers an **interactive Streamlit executive dashboard** providing clean, factual descriptive analytics across 100 restaurants.
 
 ---
 
@@ -20,7 +20,7 @@ Standard customer star ratings (1 to 5 stars) fail modern restaurant management:
 5. [The Gold 650 Benchmark & Out-of-Distribution Evaluation](#5-the-gold-650-benchmark--out-of-distribution-evaluation)
 6. [Analytics Engine & 10,000-Review Inference Pipeline](#6-analytics-engine--10000-review-inference-pipeline)
 7. [Streamlit Analytics Dashboard](#7-streamlit-analytics-dashboard)
-8. [Root Cause Diagnosis & SOP Playbooks](#8-root-cause-diagnosis--sop-playbooks)
+8. [Supplementary Root Cause & SOP Engine](#8-supplementary-root-cause--sop-engine)
 9. [Repository Structure](#9-repository-structure)
 10. [Quickstart & Reproduction Guide](#10-quickstart--reproduction-guide)
 11. [Interview Talking Points & System Design Q&A](#11-interview-talking-points--system-design-qa)
@@ -31,7 +31,7 @@ Standard customer star ratings (1 to 5 stars) fail modern restaurant management:
 
 ```mermaid
 flowchart TD
-    A["Raw Reviews Corpus<br/>(10,000 Reviews | 101 Establishments)"] --> B["Data Ingestion & Hygiene<br/>(Deduplication, Corrupt Column Stripping, Date Parsing)"]
+    A["Raw Reviews Corpus<br/>(10,000 Reviews | 100 Restaurants)"] --> B["Data Ingestion & Hygiene<br/>(Deduplication, Corrupt Column Stripping, Date Parsing)"]
     
     subgraph Data_Split["Data Partitioning Strategy"]
         B --> C1["2,000 Human-Annotated Reviews<br/>(12,700 clauses | 6,104 aspect-sentiment pairs)"]
@@ -46,7 +46,7 @@ flowchart TD
         E -->|Tier 2: MiniLM Dense Cosine Embeddings| F["Implicit Aspects / Metaphors"]
     end
 
-    subgraph Sentiment_Modeling["Sentiment Classification Suite"]
+    subgraph Sentiment_Modeling["Sentiment Classification Suite (Text-Only Inference)"]
         F --> G1["Classical Baselines (TF-IDF)<br/>(Logistic Reg, Linear SVM, RF, XGBoost)"]
         F --> G2["Fine-Tuned DistilBERT<br/>(Neutral-Boosted Cross-Entropy Loss)"]
     end
@@ -59,12 +59,11 @@ flowchart TD
     subgraph Analytics_Pipeline["Offline Batch Analytics Pipeline"]
         G2 --> I["Full 10,000-Review Inference<br/>(45,945 Preserved Clause Assertions)"]
         I --> J["Review-Aspect Aggregation & Conflict Resolution<br/>(Mixed Rule & Strict Denominator Filtering)"]
-        J --> K["Restaurant Health Index (RHI)<br/>(Empirical Bayes Beta-Binomial Smoothing + Time Decay)"]
-        I --> L["Root Cause Engine<br/>(SpaCy Dependency Parsing & Complaint Clustering)"]
-        K --> M["Hybrid RAG Executive Reporting<br/>(Domain SOP Playbook Grounding + Numeric Verification)"]
+        J --> K["Restaurant Scorecard & Health Index<br/>(Operational Weights & Temporal Recency Decay)"]
+        I --> L["Supplementary Root Cause Mining<br/>(SpaCy Dependency Parsing & Complaint Clusters)"]
     end
 
-    subgraph User_Interface["Interactive Streamlit Analytics Dashboard"]
+    subgraph User_Interface["Interactive Streamlit Analytics Dashboard (Descriptive Analytics)"]
         J --> N1["1. Executive Overview & Mention Rates"]
         J --> N2["2. Aspect Breakdown & Polar Balance"]
         J --> N3["3. Monthly Longitudinal Trends"]
@@ -79,9 +78,10 @@ flowchart TD
 ## 2. Dataset Strategy & Initial Engineering
 
 ### 2.1 Raw Dataset Context
-- **Source**: 10,000 multi-restaurant dining reviews collected across 101 establishments in Hyderabad, India.
+- **Source**: 10,000 multi-restaurant dining reviews collected across **100 restaurants** in Hyderabad, India (~100 reviews per restaurant).
 - **Attributes**: `Restaurant`, `Reviewer`, `Review`, `Rating` (1.0 to 5.0 stars), `Metadata` (Pictures/Followers), and `Time` (date timestamps).
-- **Core Dilemma**: Document-level star ratings hide operational defects. A diner giving a 4-star rating can simultaneously express dissatisfaction with valet parking or billing latency. ABSA is needed to decouple sentiment into actionable operational categories.
+- **Text-Only NLP Input**: The ABSA models read and classify sentiment **exclusively from raw review text clauses**. Star ratings are never provided as features to the NLP models; they exist only as metadata and for post-hoc external validation.
+- **The Core Business Problem**: Overall star ratings hide operational defects. A diner giving a 4-star rating can simultaneously express dissatisfaction with valet parking or billing latency. ABSA decouples feedback into actionable operational categories directly from text.
 
 ### 2.2 Preprocessing & Data Hygiene Pipeline (`preprocessing.py` & `data_loader.py`)
 1. **Corrupt Column Pruning**: Stripped malformed CSV columns (e.g., historical artifacts such as column `'7514'`).
@@ -102,7 +102,7 @@ To build a production system without manually labeling 10,000 documents:
   - **Zero Data Leakage Guarantee**: Partitioned using `GroupShuffleSplit` / `StratifiedGroupKFold` grouped by `Reviewer` (70% Train, 15% Validation, 15% Test). Reviewers with multiple reviews never span both train and test splits, preventing reviewer-specific stylistic memorization.
 - **Phase 2 (The 8,000 Unlabeled Production Corpus)**:
   - Kept held-out during all model training.
-  - Used to test the production inference pipeline (`pipeline.py`), simulating real-world batch ingestion across 101 establishments and generating the full 45,945 assertion warehouse.
+  - Used to test the production inference pipeline (`pipeline.py`), simulating real-world batch ingestion across all 100 restaurants and generating the full 45,945 assertion warehouse.
 
 ---
 
@@ -482,12 +482,12 @@ To diagnose model behavior across diverse operational semantics, sentiment accur
 
 While model development and hyperparameter tuning were conducted on the 2,000 curated review subset, production deployment demands processing the entire **10,000 review corpus** (including the **8,000 held-out, unannotated reviews**).
 
-The offline precompute pipeline (`pipeline.py`, `aspect_engine.py`, and `analytics.py`) executes end-to-end batch inference across all 101 restaurants, outputting `full_10000_reviews_assertions.csv` containing **45,945 structured, auditable clause assertions**.
+The offline precompute pipeline (`pipeline.py`, `aspect_engine.py`, and `analytics.py`) executes end-to-end batch inference across all **100 restaurants**, outputting `full_10000_reviews_assertions.csv` containing **45,945 structured, auditable clause assertions**.
 
 ```
 Total Processed Assertions: 45,945
 ├── Unique Reviews Covered: 9,634
-├── Unique Restaurants: 101
+├── Unique Restaurants: 100 (plus 1 evaluation benchmark tag)
 ├── Aspect Distribution:
 │   ├── Food: 21,892 (47.6%)
 │   ├── Service: 8,426 (18.3%)
@@ -608,9 +608,8 @@ def extract_aspects_from_review(review_text: str) -> list:
 
 #### 4. Batch Precompute Runner (`pipeline.py`)
 To ensure the Streamlit web application achieves instantaneous $<100\text{ms}$ page loads, inference over the 8,000 unannotated reviews is **precomputed offline**:
-- Iterates over all 101 establishments using `tqdm`.
+- Iterates over all 100 restaurants using `tqdm`.
 - Emits pre-aggregated metrics into columnar Apache Parquet (`restaurant_health_summary.parquet`) and CSV (`restaurant_health_summary.csv`).
-- Clusters negative feedback into root-cause issues (`complaint_clusters.json`).
 
 ---
 
@@ -622,10 +621,7 @@ To ensure the Streamlit web application achieves instantaneous $<100\text{ms}$ p
    - Neutral clauses only $\rightarrow$ `Neutral`
    - Both Positive and Negative clauses present for the same aspect $\rightarrow$ **`Mixed`** (e.g., *"Starters were great but mutton was rubbery"*).
 3. **Strict Denominator Rule**: *"No Aspect Opinion"* is an exclusion filter, **never** imputed as Neutral sentiment. Aspect sentiment shares are computed strictly over reviews that actually mentioned that aspect.
-4. **Empirical Bayes Beta-Binomial Smoothing**:
-   For low-volume restaurants ($N < 10$ mentions), raw polarity rates fluctuate wildly. We apply Empirical Bayes shrinkage toward dataset-wide aspect priors ($\mu_0 = 0.35, k = 5.0$):
-   $$\text{Smoothed Polarity} = \frac{N \cdot \text{Raw Polarity} + k \cdot \mu_0}{N + k}$$
-   $$\text{Aspect Score} = 50 \cdot (\text{Smoothed Polarity} + 1) \quad \in [0, 100]$$
+4. **Direct, Grounded Descriptive Rates**: The core analytics dashboard operates on direct, transparent percentages and mention rates without opaque composite conversions. (An optional Empirical Bayes Beta-Binomial shrinkage formula is implemented in `analytics.py` for small-sample experimentation).
 
 ---
 
@@ -640,11 +636,13 @@ $$\text{RHI} = 0.40 \cdot \text{Score}_{\text{Food}} + 0.30 \cdot \text{Score}_{
 
 ## 7. Streamlit Analytics Dashboard
 
-An interactive enterprise dashboard (`app.py`) built with Streamlit and Plotly Express to visualize the 10,000-review dataset across 101 restaurants.
+An interactive enterprise dashboard (`app.py`) built with Streamlit and Plotly Express to visualize the 10,000-review dataset across **100 restaurants**. 
+
+**Dashboard Core Design Principle:** *Descriptive Only*—all metrics presented in the UI are strictly factual observations derived directly from computed review counts and sentiment percentages (no black-box composite scores).
 
 ### The 6 Interactive Views
 1. **Executive Overview**:
-   - High-level KPIs: Total eligible reviews ($N=9,634$), active restaurants ($101$), total aspect opinions evaluated, and raw preserved assertions ($45,945$).
+   - High-level KPIs: Total eligible reviews ($N=9,634$), active restaurants ($100$), total aspect opinions evaluated, and raw preserved assertions ($45,945$).
    - Aspect Mention Rates (% of all reviews mentioning Food, Service, Ambience, Price, General Experience).
    - Review-level global sentiment distribution donut chart (`Positive`, `Negative`, `Neutral`, `Mixed`).
 2. **Aspect Analytics**:
@@ -667,7 +665,9 @@ An interactive enterprise dashboard (`app.py`) built with Streamlit and Plotly E
 
 ---
 
-## 8. Root Cause Diagnosis & SOP Playbooks
+## 8. Supplementary Root Cause & SOP Engine
+
+As an offline diagnostic extension (`root_cause.py` and `report_llm.py`), DineSense includes tools to investigate recurring negative themes.
 
 Beyond classification, DineSense pinpoints *why* an aspect is failing.
 
@@ -787,4 +787,4 @@ Open and execute `06_gold_650_benchmark_evaluation/gold_650_benchmark.ipynb` in 
 > **Answer**: Unsupervised topic models (LDA, standard NMF) discover vocabulary co-occurrence topics that rarely align with operational business categories. They conflate food items with service interactions (e.g., placing *"bill"* and *"dessert"* in the same topic). Our **Two-Tier Hybrid Engine** uses deterministic domain lexicons and latency disambiguation for explicit mentions ($O(1)$ lookup), backing it up with `all-MiniLM-L6-v2` dense embeddings for implicit metaphors. This maintains 100% auditable, consistent operational categories.
 
 ### Q5: How is the Restaurant Health Index (RHI) statistically validated?
-> **Answer**: We validated RHI against ground-truth customer star ratings across all 101 establishments. Using **Spearman Rank Correlation**, RHI achieved $\rho = 0.9173$ ($p = 5.71 \times 10^{-41}$). This proves that while RHI accurately reflects customer satisfaction, it unpacks the score into actionable operational weights ($40\%$ Food, $30\%$ Service, $15\%$ Price, $15\%$ Ambience) with Empirical Bayes shrinkage to eliminate small-sample noise.
+> **Answer**: We validated RHI against ground-truth customer star ratings across all 100 restaurants. Using **Spearman Rank Correlation**, RHI achieved $\rho = 0.9173$ ($p = 5.71 \times 10^{-41}$). This proves that while RHI accurately reflects overall customer satisfaction, it unpacks the score into actionable operational weights ($40\%$ Food, $30\%$ Service, $15\%$ Price, $15\%$ Ambience) directly from text clauses rather than relying on noisy subjective star inputs.
